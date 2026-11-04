@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#f8f6f0" />
+  <meta name="description" content="อัปโหลดภาพเพื่อทำนายชนิดดอกมะลิ กุหลาบ และทานตะวัน ด้วย AI" />
+  <title>Bloom AI — ทำนายชนิดดอกไม้</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web/dist/ort.min.js"></script>
+  <script defer src="script.js"></script>
+  <style>
+    :root { color-scheme: light; --ink: #202820; --muted: #788078; --paper: #f8f6f0; --green: #355a45; --line: #e8e7df; }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body { margin: 0; background: var(--paper); color: var(--ink); font-family: "DM Sans", "Prompt", sans-serif; -webkit-font-smoothing: antialiased; }
+    button, input { font: inherit; }
+    .site-header { position: sticky; z-index: 3; top: 0; display: flex; align-items: center; justify-content: space-between; min-height: 74px; padding: 0 7.2%; border-bottom: 1px solid rgba(32,40,32,.08); background: rgba(248,246,240,.91); backdrop-filter: blur(16px); }
+    .brand { display: inline-flex; align-items: center; gap: 10px; color: var(--ink); font-size: 17px; font-weight: 700; letter-spacing: -.5px; text-decoration: none; }
+    .brand-mark { display: grid; width: 34px; height: 34px; place-items: center; border-radius: 12px; background: var(--green); color: #fff; font-size: 18px; }
+    .brand-name span { color: var(--green); }
+    .nav-note { color: #647064; font-family: "Prompt", sans-serif; font-size: 12px; }
+    main { width: min(1120px, 86%); margin: 0 auto; padding: 48px 0 76px; }
+    .intro { max-width: 700px; margin-bottom: 27px; }
+    .eyebrow { display: inline-flex; align-items: center; gap: 9px; color: var(--green); font-size: 11px; font-weight: 700; letter-spacing: 1.3px; text-transform: uppercase; }
+    .eyebrow::before { width: 22px; height: 1px; background: currentColor; content: ""; }
+    h1 { margin: 12px 0 9px; font-family: "Prompt", sans-serif; font-size: clamp(34px, 5vw, 52px); font-weight: 500; letter-spacing: -1.7px; line-height: 1.25; }
+    h1 span { color: #b87970; }
+    .intro p { margin: 0; color: var(--muted); font-family: "Prompt", sans-serif; font-size: 14px; line-height: 1.85; }
+    .workspace { display: grid; grid-template-columns: minmax(0, 1.05fr) minmax(330px, .95fr); align-items: stretch; gap: 20px; }
+    .upload-panel, .result-panel { min-width: 0; padding: 22px; border: 1px solid #eeeee8; border-radius: 20px; background: #fff; box-shadow: 0 15px 40px rgba(32,40,32,.035); }
+    .panel-heading { display: flex; align-items: center; gap: 11px; margin-bottom: 17px; }
+    .step-number { display: grid; width: 31px; height: 31px; flex: 0 0 auto; place-items: center; border-radius: 11px; background: #edf2eb; color: var(--green); font-size: 12px; font-weight: 700; }
+    .panel-heading h2 { margin: 0; font-family: "Prompt", sans-serif; font-size: 16px; font-weight: 500; }
+    .panel-heading p { margin: 3px 0 0; color: var(--muted); font-size: 10px; }
+    .drop-zone { position: relative; display: flex; min-height: 300px; align-items: center; justify-content: center; overflow: hidden; border: 1.5px dashed #d8ded5; border-radius: 15px; background: #fafbf8; transition: border-color .2s, background .2s; }
+    .drop-zone.drag-over { border-color: var(--green); background: #f0f5ef; }
+    #canvas { display: none; width: 100%; max-height: 450px; object-fit: contain; }
+    .drop-prompt { padding: 26px; text-align: center; }
+    .upload-icon { display: grid; width: 54px; height: 54px; margin: 0 auto 13px; place-items: center; border-radius: 18px; background: #eff3ec; color: var(--green); font-size: 24px; }
+    .drop-prompt strong { display: block; font-family: "Prompt", sans-serif; font-size: 14px; font-weight: 500; }
+    .drop-prompt p { margin: 6px 0 14px; color: var(--muted); font-family: "Prompt", sans-serif; font-size: 11px; }
+    .browse-button { display: inline-flex; align-items: center; gap: 7px; padding: 10px 15px; border: 0; border-radius: 99px; background: var(--green); color: #fff; cursor: pointer; font-size: 11px; font-weight: 600; transition: background .2s, transform .2s; }
+    .browse-button:hover { transform: translateY(-1px); background: #294a38; }
+    #imageInput { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; clip-path: inset(50%); }
+    #imageInput:focus-visible + .browse-button { outline: 3px solid #9cb49d; outline-offset: 3px; }
+    .image-actions { display: flex; justify-content: space-between; align-items: center; gap: 10px; margin-top: 13px; }
+    .file-hint { overflow: hidden; color: var(--muted); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+    .clear-button { padding: 8px 11px; border: 1px solid var(--line); border-radius: 99px; background: #fff; color: #677066; cursor: pointer; font-size: 10px; }
+    .clear-button:hover { border-color: #b7c3b5; color: var(--green); }
+    .clear-button:disabled { cursor: not-allowed; opacity: .48; }
+    .result-content { display: grid; min-height: 355px; place-items: center; border-radius: 15px; background: #f9faf7; }
+    .result-empty { padding: 24px; color: #879087; text-align: center; }
+    .result-empty .flower-icon { display: block; margin-bottom: 8px; font-size: 34px; }
+    .result-empty p { max-width: 225px; margin: 0 auto; font-family: "Prompt", sans-serif; font-size: 11px; line-height: 1.8; }
+    .prediction { width: 100%; padding: 24px; }
+    .prediction[hidden], .result-empty[hidden], .drop-prompt[hidden] { display: none; }
+    .prediction-label { margin: 0 0 7px; color: #8b7266; font-size: 10px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; }
+    #label { margin: 0; color: var(--green); font-family: "Prompt", sans-serif; font-size: clamp(27px, 4vw, 38px); font-weight: 500; line-height: 1.35; }
+    .confidence-row { display: flex; justify-content: space-between; margin: 20px 0 8px; color: #657064; font-size: 11px; }
+    .confidence-row strong { color: var(--green); }
+    .confidence-track { height: 8px; overflow: hidden; border-radius: 99px; background: #e7ece4; }
+    #confidence-bar { width: 0; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #7d9a7b, #355a45); transition: width .45s ease; }
+    .meaning-card { margin-top: 18px; padding: 14px 15px; border: 1px solid #eee8df; border-radius: 14px; background: #fffaf5; }
+    .meaning-card[hidden] { display: none; }
+    .meaning-card strong { display: flex; align-items: center; gap: 7px; color: #8b6a50; font-family: "Prompt", sans-serif; font-size: 11px; font-weight: 500; }
+    .meaning-card p { margin: 6px 0 0; color: #6f756c; font-family: "Prompt", sans-serif; font-size: 11px; line-height: 1.8; }
+    .confidence-note { margin: 10px 0 0; color: #858c83; font-family: "Prompt", sans-serif; font-size: 10px; line-height: 1.7; }
+    .status { min-height: 19px; margin: 12px 0 0; color: #748073; font-family: "Prompt", sans-serif; font-size: 11px; }
+    .status.error { color: #b34444; }
+    .status.success { color: var(--green); }
+    .supported { display: flex; align-items: center; gap: 9px; margin-top: 20px; padding: 13px 15px; border: 1px solid #edeee8; border-radius: 14px; background: rgba(255,255,255,.7); }
+    .supported > span { color: #859083; font-size: 10px; }
+    .flower-chips { display: flex; flex-wrap: wrap; gap: 7px; }
+    .flower-chip { padding: 6px 9px; border-radius: 99px; background: #f1f3ee; color: #5e6b5c; font-family: "Prompt", sans-serif; font-size: 10px; }
+    @media (max-width: 760px) {
+      .site-header { min-height: 66px; padding: 0 5%; }
+      main { width: 90%; padding-top: 36px; }
+      .workspace { grid-template-columns: 1fr; }
+      .drop-zone { min-height: 270px; }
+      .result-content { min-height: 260px; }
+      .supported { align-items: flex-start; flex-direction: column; }
+    }
+    @media (max-width: 430px) {
+      .upload-panel, .result-panel { padding: 16px; }
+      .drop-zone { min-height: 240px; }
+      .nav-note { max-width: 150px; text-align: right; }
+      h1 { font-size: 36px; }
+    }
+    @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; } }
+  </style>
+</head>
+<body>
+  <header class="site-header">
+    <a class="brand" href="#home" aria-label="Bloom AI หน้าหลัก"><span class="brand-mark">✿</span><span class="brand-name">Bloom <span>AI</span></span></a>
+    <span class="nav-note">รู้จักดอกไม้ได้ง่าย ๆ แค่มีรูป</span>
+  </header>
+
+  <main id="home">
+    <section class="intro" aria-labelledby="page-title">
+      <span class="eyebrow">AI flower detector</span>
+      <h1 id="page-title">ดอกนี้ชื่ออะไรนะ?<br /><span>ให้ AI ช่วยบอก</span></h1>
+      <p>อัปโหลดรูปดอกไม้ แล้วให้ AI ช่วยทำนายว่าเป็นดอกมะลิ กุหลาบ หรือทานตะวัน พร้อมบอกระดับความมั่นใจ</p>
+    </section>
+
+    <section class="workspace" aria-label="พื้นที่ทำนายชนิดดอกไม้">
+      <article class="upload-panel">
+        <div class="panel-heading"><span class="step-number">01</span><div><h2>เลือกรูปดอกไม้</h2><p>รองรับไฟล์ JPG, PNG และ WEBP</p></div></div>
+        <div class="drop-zone" id="drop-zone">
+          <div class="drop-prompt" id="drop-prompt">
+            <span class="upload-icon" aria-hidden="true">↑</span>
+            <strong>ลากรูปมาวางตรงนี้ได้เลย</strong>
+            <p>หรือเลือกภาพจากอุปกรณ์ของคุณ</p>
+            <label class="browse-button" for="imageInput">＋ เลือกรูปภาพ</label>
+          </div>
+          <input type="file" id="imageInput" accept="image/*" aria-label="เลือกรูปดอกไม้จากอุปกรณ์" />
+          <canvas id="canvas" width="640" height="640" aria-label="ภาพดอกไม้พร้อมผลการตรวจจับ"></canvas>
+        </div>
+        <div class="image-actions"><span class="file-hint" id="file-hint">แนะนำให้ใช้ภาพดอกไม้ชัด ๆ และมีแสงสว่างเพียงพอ</span><button class="clear-button" id="clear-button" type="button" disabled>ล้างรูป</button></div>
+      </article>
+
+      <article class="result-panel" aria-live="polite">
+        <div class="panel-heading"><span class="step-number">02</span><div><h2>ผลการทำนาย</h2><p>ผลลัพธ์จากโมเดล AI</p></div></div>
+        <div class="result-content">
+          <div class="result-empty" id="result-empty"><span class="flower-icon" aria-hidden="true">🌼</span><p>ผลทำนายจะแสดงตรงนี้<br />เมื่อคุณเลือกรูปภาพแล้ว</p></div>
+          <div class="prediction" id="prediction" hidden>
+            <p class="prediction-label">ดอกไม้ที่ AI คิดว่าใช่ที่สุดคือ</p>
+            <h2 id="label"></h2>
+            <div class="confidence-row"><span>ความมั่นใจ</span><strong id="confidence-text">0%</strong></div>
+            <div class="confidence-track" role="progressbar" aria-label="ระดับความมั่นใจ" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" id="confidence-progress"><div id="confidence-bar"></div></div>
+            <div class="meaning-card" id="meaning-card" hidden><strong><span aria-hidden="true">✿</span> ความหมายของดอกไม้</strong><p id="flower-meaning"></p></div>
+            <p class="confidence-note">ผลลัพธ์เป็นการประเมินจาก AI อาจคลาดเคลื่อนได้ ควรใช้รูปที่เห็นดอกไม้ชัดเจน</p>
+          </div>
+        </div>
+        <p class="status" id="status" role="status">กำลังเตรียมระบบทำนาย...</p>
+      </article>
+    </section>
+
+    <aside class="supported" aria-label="ชนิดดอกไม้ที่โมเดลรองรับ"><span>โมเดลรู้จัก</span><div class="flower-chips"><span class="flower-chip">🌼 ดอกมะลิ</span><span class="flower-chip">🌹 ดอกกุหลาบ</span><span class="flower-chip">🌻 ดอกทานตะวัน</span></div></aside>
+  </main>
+</body>
+</html>
